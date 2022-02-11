@@ -2,6 +2,9 @@ import * as pacote from 'pacote'
 import {publish as _publish} from 'libnpmpublish'
 import got from 'got'
 import ssri from 'ssri'
+import {compress, decompress} from 'targz'
+import { readFileSync, writeFileSync } from 'fs';
+import { promisify } from 'util';
 
 export function namedScope(name: string) {
   const scope = name.match(/^(@[\w-]+)\/[\w-]+$/)
@@ -11,6 +14,32 @@ export function namedScope(name: string) {
 export function namedPackage(name: string) {
   const pkgName = name.match(/^@[\w-]+\/([\w-]+)$/)
   return pkgName ? pkgName[1] : undefined
+}
+
+export async function renamePackage(tarball: any, name: string): void {
+	const tmpBall = '/tmp/cpuit.tar.gz';
+	const tmpUnpacked = '/tmp/cpuit';
+
+	writeFileSync(tmpBall, tarball);
+
+	const tgz = promisify(compress);
+	const utgz = promisify(decompress);
+
+	await utgz({
+    src: tmpBall,
+    dest: tmpUnpacked
+	}).then(() => {
+		const json = require(tmpUnpacked + '/package/package.json');
+		json.name = name;
+		writeFileSync(tmpUnpacked + '/package/package.json', JSON.stringify(json));
+	});
+
+	return await tgz({
+		src: tmpUnpacked,
+		dest: tmpBall
+	}).then(() => {
+		return readFileSync(tmpBall);
+	});
 }
 
 export function scopedOptions(scope: string | undefined, registry: string, token: string | undefined) {
@@ -73,15 +102,19 @@ export async function fetchTarball(dist: ManifestDist, token?: string) {
 }
 
 // Prepare manifest before publishing to target
-export function prepareManifest(packument: Record<string, any>, version: string): Record<string, any> {
+export function prepareManifest(packument: Record<string, any>, name: string, version: string): Record<string, any> {
   const manifest = packument.versions[version]
   const latestVersion = packument['dist-tags'].latest
+
+  packument.name = name
 
   // Remove source registry
   delete manifest.publishConfig
 
   // Always publish latest repository info
   manifest.repository = packument.versions[latestVersion].repository
+	manifest._id = name + "@" + version
+	manifest.name = name
 
   // Ensure we include the readme on the latest version
   if (!manifest.readme && version === latestVersion) {

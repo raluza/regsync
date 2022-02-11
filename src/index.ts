@@ -1,5 +1,5 @@
 import { fromStream } from 'ssri'
-import {fetchTarball, getPackument, namedScope, namedPackage, prepareManifest, publish, scopedOptions} from './util'
+import {fetchTarball, renamePackage, getPackument, namedScope, namedPackage, prepareManifest, publish, scopedOptions} from './util'
 import { writeFileSync } from 'fs';
 
 export async function sync(name: string, from: Record<string, string>, to: Record<string, string>, newScope: string = namedScope(name), dryRun = false) {
@@ -31,18 +31,17 @@ export async function sync(name: string, from: Record<string, string>, to: Recor
     let spec = name + '@' + version
     console.log('Reading %s from %s', spec, from.registry)
 
-    const manifest = prepareManifest(srcPackument, version)
-    console.debug('Dist', manifest.dist)
-
+    const manifest = prepareManifest(srcPackument, newScope + "/" + pkgName, version)
+    
     //const tarball = await getTarball(spec, srcOptions)
     const tarball = await fetchTarball(manifest.dist, from.token)
     console.debug('Tarball length', tarball.length)
+    await renamePackage(tarball, newScope + "/" + pkgName)
 
     spec = newScope + "/" + pkgName + '@' + version
     console.log('Publishing %s to %s', spec, to.registry)
-    
-    manifest.name = newScope + "/" + pkgName 
-    console.log('manifest: ', manifest.name);
+
+    console.log(manifest)
 
     await publish(manifest, tarball, dstOptions, dryRun)
   }
