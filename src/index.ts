@@ -1,10 +1,12 @@
-import {fetchTarball, getPackument, namedScope, prepareManifest, publish, scopedOptions} from './util'
+import { fromStream } from 'ssri'
+import {fetchTarball, getPackument, namedScope, namedPackage, prepareManifest, publish, scopedOptions} from './util'
+import { writeFileSync } from 'fs';
 
-export async function sync(name: string, from: Record<string, string>, to: Record<string, string>, dryRun = false) {
+export async function sync(name: string, from: Record<string, string>, to: Record<string, string>, newScope: string = namedScope(name), dryRun = false) {
   // TODO: handle version spec
   const scope = namedScope(name)
-  console.debug('scope', scope)
-
+  const pkgName = namedPackage(name)
+  
   // get available source versions
   const srcOptions = scopedOptions(scope, from.registry, from.token)
   // fullMetadata may needed to obtain the repository property in manifest
@@ -14,7 +16,7 @@ export async function sync(name: string, from: Record<string, string>, to: Recor
   console.debug('Source versions', srcVersions)
 
   // get available target versions
-  const dstOptions = scopedOptions(scope, to.registry, to.token)
+  const dstOptions = scopedOptions(newScope, to.registry, to.token)
   const dstPackument = await getPackument(name, dstOptions)
   const dstVersions = dstPackument ? Object.keys(dstPackument.versions) : []
   console.debug('Target versions', dstVersions)
@@ -26,7 +28,7 @@ export async function sync(name: string, from: Record<string, string>, to: Recor
   }
 
   for (const version of missing) {
-    const spec = name + '@' + version
+    let spec = name + '@' + version
     console.log('Reading %s from %s', spec, from.registry)
 
     const manifest = prepareManifest(srcPackument, version)
@@ -36,7 +38,12 @@ export async function sync(name: string, from: Record<string, string>, to: Recor
     const tarball = await fetchTarball(manifest.dist, from.token)
     console.debug('Tarball length', tarball.length)
 
+    spec = newScope + "/" + pkgName + '@' + version
     console.log('Publishing %s to %s', spec, to.registry)
+    
+    manifest.name = newScope + "/" + pkgName 
+    console.log('manifest: ', manifest.name);
+
     await publish(manifest, tarball, dstOptions, dryRun)
   }
   return missing.length

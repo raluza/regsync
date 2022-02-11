@@ -8,6 +8,11 @@ export function namedScope(name: string) {
   return scope ? scope[1] : undefined
 }
 
+export function namedPackage(name: string) {
+  const pkgName = name.match(/^@[\w-]+\/([\w-]+)$/)
+  return pkgName ? pkgName[1] : undefined
+}
+
 export function scopedOptions(scope: string | undefined, registry: string, token: string | undefined) {
   const scopedRegistry = scope ? scope + ':registry' : 'registry'
   const opts: Record<string, any> = {}
